@@ -1,0 +1,99 @@
+spring:
+  application:
+    name: ms-recepcion-incidentes
+
+  # Configuración de PostgreSQL
+  datasource:
+    url: jdbc:postgresql://localhost:5432/MSrecepcion
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+
+  # Configuración de JPA/Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: validate  # validate: valida el esquema, no crea/modifica tablas
+    show-sql: true  # Mostrar SQL en consola para desarrollo
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+    open-in-view: false  # Deshabilitar para evitar problemas con lazy loading
+
+  # Configuración de subida de archivos
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 15MB
+      file-size-threshold: 2MB
+
+# Configuración del servidor
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# Configuración de Multimedia (Almacenamiento local)
+app:
+  multimedia:
+    # Directorio para almacenar archivos subidos
+    upload-dir: ${UPLOAD_DIR:./uploads}
+    # Tamaño máximo por archivo en bytes (10MB)
+    max-file-size: 10485760
+    # URL base para acceder a los archivos (para n8n y ML)
+    base-url: ${BASE_URL:http://localhost:8080/api}
+
+# Configuración de servicios ML (Machine Learning)
+ml:
+  texto:
+    base-url: ${ML_TEXTO_URL:http://localhost:8001}
+    enabled: true
+  imagen:
+    base-url: ${ML_IMAGEN_URL:http://localhost:8002}
+    enabled: true
+
+# Configuración de API Keys
+api:
+  keys:
+    # API Key para el administrador (panel web)
+    admin: ${API_KEY_ADMIN:admin-key-change-in-production-12345}
+    # API Key para n8n (bots de WhatsApp/Telegram)
+    n8n: ${API_KEY_N8N:n8n-key-change-in-production-67890}
+
+# Configuración de Swagger/OpenAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    filter: true
+  show-actuator: true
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+# Configuración de Actuator (Health Checks)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.recepcion: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

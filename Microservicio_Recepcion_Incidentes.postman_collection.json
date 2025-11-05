@@ -1,0 +1,914 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-123456789012",
+		"name": "Microservicio Recepción de Incidentes",
+		"description": "Colección completa de endpoints para el microservicio de recepción de incidentes médicos.\n\n## Autenticación\n\nTodas las peticiones requieren el header `X-API-KEY`.\n\n**API Keys disponibles:**\n- ADMIN: `admin-key-change-in-production-12345`\n- N8N: `n8n-key-change-in-production-67890`",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Solicitantes",
+			"item": [
+				{
+					"name": "Crear Solicitante",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nombreCompleto\": \"Juan Pérez García\",\n  \"telefono\": \"+59177123456\",\n  \"canalOrigen\": \"WHATSAPP\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/solicitantes",
+							"host": ["{{base_url}}"],
+							"path": ["solicitantes"]
+						},
+						"description": "Crea un nuevo solicitante en el sistema."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Solicitantes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/solicitantes?page=0&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["solicitantes"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Lista todos los solicitantes con paginación."
+					},
+					"response": []
+				},
+				{
+					"name": "Buscar Solicitante por Teléfono",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/solicitantes/telefono/+59177123456",
+							"host": ["{{base_url}}"],
+							"path": ["solicitantes", "telefono", "+59177123456"]
+						},
+						"description": "Busca un solicitante por su número de teléfono."
+					},
+					"response": []
+				}
+			],
+			"description": "Operaciones CRUD para gestión de solicitantes"
+		},
+		{
+			"name": "2. Ubicaciones",
+			"item": [
+				{
+					"name": "Crear Ubicación",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"descripcionTextual\": \"Av. Cristo Redentor esquina 4to Anillo\",\n  \"latitud\": -17.783889,\n  \"longitud\": -63.182222,\n  \"ciudad\": \"Santa Cruz de la Sierra\",\n  \"distrito\": \"Zona Norte\",\n  \"zona\": \"Equipetrol\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/ubicaciones",
+							"host": ["{{base_url}}"],
+							"path": ["ubicaciones"]
+						},
+						"description": "Crea una nueva ubicación geográfica."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Ubicaciones",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/ubicaciones",
+							"host": ["{{base_url}}"],
+							"path": ["ubicaciones"]
+						},
+						"description": "Lista todas las ubicaciones registradas."
+					},
+					"response": []
+				}
+			],
+			"description": "Gestión de ubicaciones geográficas"
+		},
+		{
+			"name": "3. Incidentes",
+			"item": [
+				{
+					"name": "Crear Incidente (Flujo Completo)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Guardar el ID del incidente creado",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"incidente_id\", jsonData.id);",
+									"    console.log(\"Incidente creado con ID: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_n8n}}",
+								"type": "text",
+								"description": "API Key de n8n (puede crear incidentes)"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"solicitante\": {\n    \"nombreCompleto\": \"María González\",\n    \"telefono\": \"+59176987654\",\n    \"canalOrigen\": \"TELEGRAM\"\n  },\n  \"ubicacion\": {\n    \"descripcionTextual\": \"Av. Banzer cerca del Cristo Redentor\",\n    \"latitud\": -17.785000,\n    \"longitud\": -63.180000,\n    \"distrito\": \"Zona Norte\"\n  },\n  \"descripcionOriginal\": \"Accidente de tránsito, dos vehículos colisionaron, hay heridos con sangrado, requieren atención urgente\",\n  \"tipoIncidenteReportado\": \"ACCIDENTE_TRAFICO\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/incidentes",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes"]
+						},
+						"description": "Crea un nuevo incidente. Usa API Key de n8n.\n\nEl incidente se crea con estado RECIBIDO y prioridad inicial 3."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Todos los Incidentes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes?page=0&size=20",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Lista todos los incidentes con paginación."
+					},
+					"response": []
+				},
+				{
+					"name": "Ver Detalle de Incidente",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/{{incidente_id}}/detalle",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "{{incidente_id}}", "detalle"]
+						},
+						"description": "Obtiene el detalle completo de un incidente incluyendo análisis ML, multimedia e historial."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Incidentes por Estado",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/estado/RECIBIDO",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "estado", "RECIBIDO"]
+						},
+						"description": "Lista incidentes filtrados por estado.\n\nEstados disponibles:\n- RECIBIDO\n- EN_ANALISIS_TEXTO\n- EN_ANALISIS_IMAGEN\n- ANALIZADO\n- APROBADO\n- RECHAZADO\n- CANCELADO"
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Incidentes para Despacho",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/despacho",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "despacho"]
+						},
+						"description": "Lista incidentes APROBADOS y verosímiles, listos para despacho de ambulancia.\n\nOrdenados por prioridad y fecha."
+					},
+					"response": []
+				},
+				{
+					"name": "Aprobar Incidente",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/{{incidente_id}}/aprobar",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "{{incidente_id}}", "aprobar"]
+						},
+						"description": "Aprueba un incidente para que sea despachado.\n\nSolo ADMIN puede aprobar."
+					},
+					"response": []
+				},
+				{
+					"name": "Rechazar Incidente",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/{{incidente_id}}/rechazar?motivo=Incidente no verídico, imagen no corresponde",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "{{incidente_id}}", "rechazar"],
+							"query": [
+								{
+									"key": "motivo",
+									"value": "Incidente no verídico, imagen no corresponde"
+								}
+							]
+						},
+						"description": "Rechaza un incidente con motivo.\n\nSolo ADMIN puede rechazar."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancelar Incidente",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/{{incidente_id}}/cancelar?motivo=Solicitante canceló, situación resuelta",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "{{incidente_id}}", "cancelar"],
+							"query": [
+								{
+									"key": "motivo",
+									"value": "Solicitante canceló, situación resuelta"
+								}
+							]
+						},
+						"description": "Cancela un incidente.\n\nEl solicitante puede cancelar sus propios incidentes."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Incidentes de Prioridad Alta",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/incidentes/prioridad-alta",
+							"host": ["{{base_url}}"],
+							"path": ["incidentes", "prioridad-alta"]
+						},
+						"description": "Lista incidentes con prioridad 1 o 2 (más urgentes)."
+					},
+					"response": []
+				}
+			],
+			"description": "Gestión completa de incidentes médicos"
+		},
+		{
+			"name": "4. Multimedia",
+			"item": [
+				{
+					"name": "Subir Imagen a Incidente",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Guardar el ID del multimedia creado",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"multimedia_id\", jsonData.id);",
+									"    console.log(\"Multimedia creado con ID: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_n8n}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "archivo",
+									"type": "file",
+									"src": "path/to/image.jpg",
+									"description": "Archivo de imagen (JPG, PNG, HEIC, WEBP)"
+								},
+								{
+									"key": "descripcion",
+									"value": "Imagen del accidente tomada por el solicitante",
+									"type": "text"
+								},
+								{
+									"key": "esPrincipal",
+									"value": "true",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/multimedia/incidente/{{incidente_id}}/subir",
+							"host": ["{{base_url}}"],
+							"path": ["multimedia", "incidente", "{{incidente_id}}", "subir"]
+						},
+						"description": "Sube un archivo multimedia a un incidente.\n\n**Importante:** Selecciona un archivo de imagen en el campo 'archivo'.\n\nFormatos soportados: JPG, PNG, HEIC, WEBP\nTamaño máximo: 10MB"
+					},
+					"response": []
+				},
+				{
+					"name": "Ver Imagen (Inline)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_n8n}}",
+								"type": "text",
+								"description": "n8n puede acceder a multimedia"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/multimedia/{{multimedia_id}}/ver",
+							"host": ["{{base_url}}"],
+							"path": ["multimedia", "{{multimedia_id}}", "ver"]
+						},
+						"description": "Sirve la imagen inline (visualización directa).\n\nEste endpoint es usado por:\n- n8n (para verificar subida)\n- Servicio ML (para análisis de imagen)\n- Frontend (para mostrar imágenes)"
+					},
+					"response": []
+				},
+				{
+					"name": "Descargar Archivo",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/multimedia/{{multimedia_id}}/descargar",
+							"host": ["{{base_url}}"],
+							"path": ["multimedia", "{{multimedia_id}}", "descargar"]
+						},
+						"description": "Descarga el archivo multimedia como attachment."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Multimedia de Incidente",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/multimedia/incidente/{{incidente_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["multimedia", "incidente", "{{incidente_id}}"]
+						},
+						"description": "Lista todos los archivos multimedia de un incidente."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Multimedia Pendiente de Análisis",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/multimedia/pendientes-analisis",
+							"host": ["{{base_url}}"],
+							"path": ["multimedia", "pendientes-analisis"]
+						},
+						"description": "Lista multimedia que aún no ha sido analizado por ML.\n\nÚtil para el servicio ML para saber qué imágenes procesar."
+					},
+					"response": []
+				}
+			],
+			"description": "Gestión de archivos multimedia (imágenes, audio, video)"
+		},
+		{
+			"name": "5. Análisis ML",
+			"item": [
+				{
+					"name": "Ver Análisis de Texto",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analisis-texto/incidente/{{incidente_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["analisis-texto", "incidente", "{{incidente_id}}"]
+						},
+						"description": "Obtiene el análisis ML de texto de un incidente.\n\nIncluye:\n- Prioridad calculada\n- Tipo de incidente predicho\n- Palabras clave críticas\n- Entidades médicas detectadas"
+					},
+					"response": []
+				},
+				{
+					"name": "Ver Análisis de Imagen",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analisis-imagen/incidente/{{incidente_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["analisis-imagen", "incidente", "{{incidente_id}}"]
+						},
+						"description": "Obtiene los análisis ML de imágenes de un incidente.\n\nIncluye:\n- Score de veracidad\n- Nivel de gravedad visual\n- Objetos detectados\n- Detección de anomalías"
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Análisis de Texto Pendientes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analisis-texto/pendientes",
+							"host": ["{{base_url}}"],
+							"path": ["analisis-texto", "pendientes"]
+						},
+						"description": "Lista análisis de texto en estado PENDIENTE."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Análisis de Imagen Pendientes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analisis-imagen/pendientes",
+							"host": ["{{base_url}}"],
+							"path": ["analisis-imagen", "pendientes"]
+						},
+						"description": "Lista análisis de imagen en estado PENDIENTE."
+					},
+					"response": []
+				}
+			],
+			"description": "Consulta de análisis ML (texto e imágenes)"
+		},
+		{
+			"name": "6. Historial de Estados",
+			"item": [
+				{
+					"name": "Ver Historial de Incidente",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/historial-estados/incidente/{{incidente_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["historial-estados", "incidente", "{{incidente_id}}"]
+						},
+						"description": "Obtiene el historial completo de cambios de estado de un incidente.\n\nÚtil para auditoría y trazabilidad."
+					},
+					"response": []
+				},
+				{
+					"name": "Ver Último Cambio de Estado",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-KEY",
+								"value": "{{api_key_admin}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/historial-estados/incidente/{{incidente_id}}/ultimo",
+							"host": ["{{base_url}}"],
+							"path": ["historial-estados", "incidente", "{{incidente_id}}", "ultimo"]
+						},
+						"description": "Obtiene el último cambio de estado del incidente."
+					},
+					"response": []
+				}
+			],
+			"description": "Consulta de historial de cambios de estado"
+		},
+		{
+			"name": "7. Flujos Completos",
+			"item": [
+				{
+					"name": "Flujo: Bot WhatsApp reporta incidente",
+					"item": [
+						{
+							"name": "1. Crear Solicitante",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    var jsonData = pm.response.json();",
+											"    pm.collectionVariables.set(\"test_solicitante_id\", jsonData.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_n8n}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"nombreCompleto\": \"Roberto Castro\",\n  \"telefono\": \"+59175555555\",\n  \"canalOrigen\": \"WHATSAPP\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/solicitantes",
+									"host": ["{{base_url}}"],
+									"path": ["solicitantes"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "2. Crear Incidente",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    var jsonData = pm.response.json();",
+											"    pm.collectionVariables.set(\"test_incidente_id\", jsonData.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_n8n}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"solicitante\": {\n    \"nombreCompleto\": \"Roberto Castro\",\n    \"telefono\": \"+59175555555\",\n    \"canalOrigen\": \"WHATSAPP\"\n  },\n  \"ubicacion\": {\n    \"descripcionTextual\": \"Calle Libertad entre 1er y 2do Anillo\",\n    \"latitud\": -17.790000,\n    \"longitud\": -63.175000,\n    \"distrito\": \"Centro\"\n  },\n  \"descripcionOriginal\": \"Persona mayor se cayó en la calle, posible fractura de cadera, necesita ambulancia urgente\",\n  \"tipoIncidenteReportado\": \"ACCIDENTE_DOMESTICO\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/incidentes",
+									"host": ["{{base_url}}"],
+									"path": ["incidentes"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "3. Subir Foto del Incidente",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_n8n}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "archivo",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "descripcion",
+											"value": "Foto del accidente",
+											"type": "text"
+										},
+										{
+											"key": "esPrincipal",
+											"value": "true",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/multimedia/incidente/{{test_incidente_id}}/subir",
+									"host": ["{{base_url}}"],
+									"path": ["multimedia", "incidente", "{{test_incidente_id}}", "subir"]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Flujo completo de cómo un bot de WhatsApp reporta un incidente"
+				},
+				{
+					"name": "Flujo: Administrador gestiona incidente",
+					"item": [
+						{
+							"name": "1. Ver Incidentes Pendientes",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_admin}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/incidentes/estado/RECIBIDO",
+									"host": ["{{base_url}}"],
+									"path": ["incidentes", "estado", "RECIBIDO"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "2. Ver Detalle + Análisis",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_admin}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/incidentes/{{test_incidente_id}}/detalle",
+									"host": ["{{base_url}}"],
+									"path": ["incidentes", "{{test_incidente_id}}", "detalle"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "3. Aprobar Incidente",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_admin}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/incidentes/{{test_incidente_id}}/aprobar",
+									"host": ["{{base_url}}"],
+									"path": ["incidentes", "{{test_incidente_id}}", "aprobar"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "4. Ver Incidentes Listos para Despacho",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-API-KEY",
+										"value": "{{api_key_admin}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/incidentes/despacho",
+									"host": ["{{base_url}}"],
+									"path": ["incidentes", "despacho"]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Flujo de cómo el administrador gestiona un incidente"
+				}
+			],
+			"description": "Flujos de trabajo completos de ejemplo"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080/api",
+			"type": "string"
+		},
+		{
+			"key": "api_key_admin",
+			"value": "admin-key-change-in-production-12345",
+			"type": "string"
+		},
+		{
+			"key": "api_key_n8n",
+			"value": "n8n-key-change-in-production-67890",
+			"type": "string"
+		},
+		{
+			"key": "incidente_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "multimedia_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "test_solicitante_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "test_incidente_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

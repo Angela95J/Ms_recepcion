@@ -1,0 +1,18 @@
+# Framework web
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Machine Learning
+scikit-learn
+numpy
+pandas
+joblib
+
+# NLP
+nltk
+
+# Utilidades
+python-dotenv
+pydantic
+pydantic-settings

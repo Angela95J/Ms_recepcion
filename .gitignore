@@ -1,0 +1,5 @@
+# Archivos temporales de Windows
+*.tmp
+*.temp
+
+# Pero NO excluyas nul si son parte de tu proyecto Spring Boot
