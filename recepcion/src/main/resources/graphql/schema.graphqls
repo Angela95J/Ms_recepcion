@@ -1,0 +1,323 @@
+# ========================================
+# SCALARS PERSONALIZADOS
+# ========================================
+scalar UUID
+scalar DateTime
+scalar BigDecimal
+scalar Long
+scalar JSON
+
+# ========================================
+# ENUMS
+# ========================================
+enum EstadoIncidente {
+    RECIBIDO
+    EN_ANALISIS_TEXTO
+    EN_ANALISIS_IMAGEN
+    ANALISIS_COMPLETADO
+    ANALIZADO
+    APROBADO
+    RECHAZADO
+    CANCELADO
+}
+
+enum CanalOrigen {
+    WHATSAPP
+    TELEGRAM
+    WEB
+    MOVIL
+    LLAMADA
+}
+
+enum TipoArchivo {
+    IMAGEN
+    VIDEO
+    AUDIO
+}
+
+enum EstadoAnalisis {
+    PENDIENTE
+    EN_PROCESO
+    COMPLETADO
+    FALLIDO
+}
+
+enum OrderDirection {
+    ASC
+    DESC
+}
+
+# ========================================
+# TIPOS PRINCIPALES
+# ========================================
+
+type Incidente {
+    id: UUID!
+    codigo: String!
+    descripcionOriginal: String!
+    tipoIncidenteReportado: String
+    tipoIncidenteClasificado: String
+    prioridadInicial: Int
+    prioridadTexto: Int
+    prioridadImagen: Int
+    prioridadFinal: Int
+    scoreVeracidad: BigDecimal
+    esVerosimil: Boolean
+    estadoIncidente: EstadoIncidente!
+    motivoRechazo: String
+    fechaReporte: DateTime!
+    fechaAnalisisCompletado: DateTime
+    fechaUltimaActualizacion: DateTime!
+    observaciones: String
+
+    # Relaciones
+    solicitante: Solicitante!
+    ubicacion: Ubicacion!
+    analisisTexto: AnalisisMlTexto
+    multimedia: [Multimedia!]!
+    historialEstados: [HistorialEstado!]!
+}
+
+type Solicitante {
+    id: UUID!
+    nombreCompleto: String!
+    telefono: String!
+    email: String
+    canalOrigen: CanalOrigen!
+    idExterno: String
+    fechaRegistro: DateTime!
+    fechaUltimaActualizacion: DateTime!
+
+    # Relaciones
+    incidentes: [Incidente!]!
+    totalIncidentes: Int!
+}
+
+type Ubicacion {
+    id: UUID!
+    descripcionTextual: String!
+    referencia: String
+    latitud: BigDecimal
+    longitud: BigDecimal
+    ciudad: String
+    distrito: String
+    zona: String
+    direccion: String
+    fechaCreacion: DateTime!
+    fechaUltimaActualizacion: DateTime!
+
+    # Relaciones
+    incidentes: [Incidente!]!
+}
+
+type Multimedia {
+    id: UUID!
+    urlArchivo: String!
+    urlMiniatura: String
+    nombreArchivo: String
+    tipoArchivo: TipoArchivo!
+    formatoArchivo: String
+    tamanoBytes: Long
+    descripcion: String
+    esPrincipal: Boolean!
+    requiereAnalisisMl: Boolean!
+    analisisCompletado: Boolean!
+    fechaSubida: DateTime!
+    fechaUltimaActualizacion: DateTime!
+
+    # Relaciones
+    analisisImagen: AnalisisMlImagen
+}
+
+type AnalisisMlTexto {
+    id: UUID!
+    textoAnalizado: String!
+    prioridadCalculada: Int!
+    nivelGravedad: Int!
+    tipoIncidentePredicho: String!
+    categoriasDetectadas: JSON!
+    palabrasClaveCriticas: JSON!
+    entidadesMedicas: JSON
+    scoreConfianza: BigDecimal!
+    probabilidadesCategorias: JSON
+    modeloVersion: String
+    algoritmoUsado: String
+    tiempoProcesamientoMs: Int
+    fechaAnalisis: DateTime!
+    estadoAnalisis: EstadoAnalisis!
+    mensajeError: String
+}
+
+type AnalisisMlImagen {
+    id: UUID!
+    severidadDetectada: Int!
+    scoreVeracidad: BigDecimal!
+    elementosCriticosDetectados: JSON!
+    objetosDetectados: JSON!
+    categoriasEscena: JSON
+    calidadImagen: BigDecimal
+    tieneAnomalias: Boolean!
+    descripcionAnomalias: String
+    esImagenValida: Boolean!
+    modeloVersion: String
+    algoritmoUsado: String
+    tiempoProcesamientoMs: Int
+    fechaAnalisis: DateTime!
+    estadoAnalisis: EstadoAnalisis!
+    mensajeError: String
+}
+
+type HistorialEstado {
+    id: UUID!
+    estadoAnterior: String
+    estadoNuevo: String!
+    usuarioCambio: String!
+    motivo: String
+    metadata: JSON
+    fechaCambio: DateTime!
+}
+
+# ========================================
+# INPUTS
+# ========================================
+
+input IncidenteFilter {
+    estado: EstadoIncidente
+    prioridadMin: Int
+    prioridadMax: Int
+    fechaInicio: DateTime
+    fechaFin: DateTime
+    solicitanteId: UUID
+    distrito: String
+    esVerosimil: Boolean
+    canalOrigen: CanalOrigen
+}
+
+input PageInput {
+    page: Int = 0
+    size: Int = 20
+    orderBy: String = "fechaReporte"
+    direction: OrderDirection = DESC
+}
+
+input SolicitanteFilter {
+    nombreCompleto: String
+    telefono: String
+    canalOrigen: CanalOrigen
+    fechaRegistroInicio: DateTime
+    fechaRegistroFin: DateTime
+}
+
+input UbicacionFilter {
+    distrito: String
+    zona: String
+    ciudad: String
+}
+
+# ========================================
+# PAGINACION
+# ========================================
+
+type IncidentePage {
+    content: [Incidente!]!
+    totalElements: Long!
+    totalPages: Int!
+    number: Int!
+    size: Int!
+    first: Boolean!
+    last: Boolean!
+    empty: Boolean!
+}
+
+type SolicitantePage {
+    content: [Solicitante!]!
+    totalElements: Long!
+    totalPages: Int!
+    number: Int!
+    size: Int!
+    first: Boolean!
+    last: Boolean!
+    empty: Boolean!
+}
+
+type UbicacionPage {
+    content: [Ubicacion!]!
+    totalElements: Long!
+    totalPages: Int!
+    number: Int!
+    size: Int!
+    first: Boolean!
+    last: Boolean!
+    empty: Boolean!
+}
+
+# ========================================
+# ESTADISTICAS
+# ========================================
+
+type EstadisticasIncidente {
+    totalIncidentes: Int!
+    porEstado: [EstadisticaEstado!]!
+    porPrioridad: [EstadisticaPrioridad!]!
+    porDistrito: [EstadisticaDistrito!]!
+    porCanalOrigen: [EstadisticaCanal!]!
+}
+
+type EstadisticaEstado {
+    estado: EstadoIncidente!
+    cantidad: Int!
+    porcentaje: BigDecimal!
+}
+
+type EstadisticaPrioridad {
+    prioridad: Int!
+    cantidad: Int!
+    porcentaje: BigDecimal!
+}
+
+type EstadisticaDistrito {
+    distrito: String!
+    cantidad: Int!
+    porcentaje: BigDecimal!
+}
+
+type EstadisticaCanal {
+    canal: CanalOrigen!
+    cantidad: Int!
+    porcentaje: BigDecimal!
+}
+
+# ========================================
+# QUERIES
+# ========================================
+
+type Query {
+    # Incidentes
+    incidente(id: UUID!): Incidente
+    incidentes(filtros: IncidenteFilter, paginacion: PageInput): IncidentePage!
+    incidentesPorEstado(estado: EstadoIncidente!, paginacion: PageInput): IncidentePage!
+    incidentesPorPrioridad(prioridad: Int!, paginacion: PageInput): IncidentePage!
+    incidentesPrioridadAlta(paginacion: PageInput): IncidentePage!
+    incidentesPendientesAnalisis(paginacion: PageInput): IncidentePage!
+    incidentesParaDespacho(paginacion: PageInput): IncidentePage!
+    incidentesPorSolicitante(solicitanteId: UUID!, paginacion: PageInput): IncidentePage!
+    incidentesPorRangoFechas(fechaInicio: DateTime!, fechaFin: DateTime!, paginacion: PageInput): IncidentePage!
+
+    # Solicitantes
+    solicitante(id: UUID!): Solicitante
+    solicitantes(filtros: SolicitanteFilter, paginacion: PageInput): SolicitantePage!
+    solicitantePorTelefono(telefono: String!): Solicitante
+
+    # Ubicaciones
+    ubicacion(id: UUID!): Ubicacion
+    ubicaciones(filtros: UbicacionFilter, paginacion: PageInput): UbicacionPage!
+
+    # Historial
+    historialIncidente(incidenteId: UUID!): [HistorialEstado!]!
+
+    # Estadisticas
+    estadisticasIncidentes(filtros: IncidenteFilter): EstadisticasIncidente!
+
+    # Health Check
+    health: String!
+}

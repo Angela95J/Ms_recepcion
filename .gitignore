@@ -3,3 +3,83 @@
 *.temp
 
 # Pero NO excluyas nul si son parte de tu proyecto Spring Boot
+
+# ====================================
+# Docker
+# ====================================
+# No ignorar Dockerfiles
+!Dockerfile
+!docker-compose*.yml
+!.dockerignore
+
+# Ignorar archivos de entorno con datos sensibles
+.env
+.env.n8n
+
+# Pero mantener los ejemplos
+!.env.example
+!.env.n8n.example
+
+# Volúmenes locales de Docker (si se crean fuera de Docker)
+postgres_data/
+uploads_data/
+n8n_data/
+
+# ====================================
+# Java / Spring Boot
+# ====================================
+recepcion/target/
+recepcion/*.jar
+recepcion/*.war
+recepcion/.mvn/
+recepcion/mvnw
+recepcion/mvnw.cmd
+
+# ====================================
+# Python / ML Services
+# ====================================
+ml_analisis_texto/__pycache__/
+ml_analisis_texto/**/__pycache__/
+ml_analisis_texto/*.pyc
+ml_analisis_texto/.pytest_cache/
+ml_analisis_texto/venv/
+ml_analisis_texto/.venv/
+
+ml_analisis_imagen/__pycache__/
+ml_analisis_imagen/**/__pycache__/
+ml_analisis_imagen/*.pyc
+ml_analisis_imagen/.pytest_cache/
+ml_analisis_imagen/venv/
+ml_analisis_imagen/.venv/
+
+# Datos de entrenamiento (muy pesados)
+ml_analisis_texto/data/*.csv
+ml_analisis_texto/data/*.json
+ml_analisis_imagen/data/*.csv
+ml_analisis_imagen/data/*.json
+
+# Pero mantener los modelos entrenados (son importantes)
+!ml_analisis_texto/trained_models/
+!ml_analisis_imagen/trained_models/
+
+# ====================================
+# IDEs
+# ====================================
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# ====================================
+# Logs
+# ====================================
+*.log
+logs/
+
+# ====================================
+# OS
+# ====================================
+.DS_Store
+Thumbs.db

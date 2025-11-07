@@ -63,6 +63,22 @@ api:
     # API Key para n8n (bots de WhatsApp/Telegram)
     n8n: ${API_KEY_N8N:n8n-key-change-in-production-67890}
 
+# Configuración de GraphQL
+spring.graphql:
+  graphiql:
+    enabled: true
+    path: /graphiql
+  path: /graphql
+  schema:
+    printer:
+      enabled: true
+    locations: classpath:graphql/
+    file-extensions: .graphqls,.graphql
+  cors:
+    allowed-origins: "*"
+    allowed-methods: "*"
+    allowed-headers: "*"
+
 # Configuración de Swagger/OpenAPI
 springdoc:
   api-docs:

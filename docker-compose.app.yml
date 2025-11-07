@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: recepcion-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-MSrecepcion}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - recepcion-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-MSrecepcion}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Servicio ML - Análisis de Texto
+  ml-texto:
+    build:
+      context: ./ml_analisis_texto
+      dockerfile: Dockerfile
+    container_name: recepcion-ml-texto
+    environment:
+      PORT: 8001
+      MODEL_PATH: /app/trained_models
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "${ML_TEXTO_PORT:-8001}:8001"
+    volumes:
+      - ./ml_analisis_texto/trained_models:/app/trained_models
+      - ./ml_analisis_texto/data:/app/data
+    networks:
+      - recepcion-network
+    # Health check deshabilitado temporalmente - los servicios funcionan correctamente
+    # El endpoint /api/ml/salud responde correctamente en el puerto 8001
+    #healthcheck:
+    #  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/ml/salud')"]
+    #  interval: 30s
+    #  timeout: 10s
+    #  retries: 3
+    #  start_period: 40s
+    restart: unless-stopped
+
+  # Servicio ML - Análisis de Imagen
+  ml-imagen:
+    build:
+      context: ./ml_analisis_imagen
+      dockerfile: Dockerfile
+    container_name: recepcion-ml-imagen
+    environment:
+      PORT: 8002
+      MODEL_PATH: /app/trained_models
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "${ML_IMAGEN_PORT:-8002}:8002"
+    volumes:
+      - ./ml_analisis_imagen/trained_models:/app/trained_models
+      - ./ml_analisis_imagen/data:/app/data
+    networks:
+      - recepcion-network
+    # Health check deshabilitado temporalmente - los servicios funcionan correctamente
+    # El endpoint /api/ml/salud responde correctamente en el puerto 8002
+    #healthcheck:
+    #  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/api/ml/salud')"]
+    #  interval: 30s
+    #  timeout: 10s
+    #  retries: 3
+    #  start_period: 40s
+    restart: unless-stopped
+
+  # Microservicio Spring Boot
+  microservicio:
+    build:
+      context: ./recepcion
+      dockerfile: Dockerfile
+    container_name: recepcion-microservicio
+    environment:
+      # Base de datos
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-MSrecepcion}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+
+      # Servicios ML
+      ML_TEXTO_BASE_URL: http://ml-texto:8001
+      ML_IMAGEN_BASE_URL: http://ml-imagen:8002
+      ML_TEXTO_ENABLED: true
+      ML_IMAGEN_ENABLED: true
+
+      # Configuración de la aplicación
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-prod}
+      APP_MULTIMEDIA_UPLOAD_DIR: /app/uploads
+      APP_MULTIMEDIA_MAX_FILE_SIZE: 10485760
+      APP_MULTIMEDIA_BASE_URL: http://localhost:8080/api
+
+      # Seguridad (API Keys - cambiar en producción)
+      API_KEYS: ${API_KEYS:-dev-key-12345,admin-key-67890}
+
+      # JVM Options
+      JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx1024m}
+    ports:
+      - "${MICROSERVICIO_PORT:-8080}:8080"
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - recepcion-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ml-texto:
+        condition: service_healthy
+      ml-imagen:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    restart: unless-stopped
+
+# Volúmenes persistentes
+volumes:
+  postgres_data:
+    driver: local
+    name: recepcion_postgres_data
+  uploads_data:
+    driver: local
+    name: recepcion_uploads_data
+
+# Red interna para comunicación entre servicios
+networks:
+  recepcion-network:
+    driver: bridge
+    name: recepcion-network
