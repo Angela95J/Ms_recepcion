@@ -15,15 +15,21 @@
 # Ignorar archivos de entorno con datos sensibles
 .env
 .env.n8n
+.env.prod
 
 # Pero mantener los ejemplos
 !.env.example
 !.env.n8n.example
+!.env.prod.example
 
 # Volúmenes locales de Docker (si se crean fuera de Docker)
 postgres_data/
 uploads_data/
 n8n_data/
+
+# Certificados SSL y configuración de producción
+certbot/
+nginx/logs/
 
 # ====================================
 # Java / Spring Boot

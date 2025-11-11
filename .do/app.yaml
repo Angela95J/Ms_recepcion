@@ -1,0 +1,241 @@
+# DigitalOcean App Platform Configuration
+# Configuración para desplegar el sistema de recepción de incidentes
+name: ms-recepcion
+region: nyc
+
+# ====================================
+# BASE DE DATOS POSTGRESQL (Managed)
+# ====================================
+databases:
+  - name: recepcion-db
+    engine: PG
+    version: "15"
+    production: true
+    cluster_name: recepcion-postgres
+    db_name: MSrecepcion
+    db_user: postgres
+
+# ====================================
+# SERVICIOS
+# ====================================
+services:
+  # -------------------------
+  # Microservicio Spring Boot
+  # -------------------------
+  - name: microservicio
+    github:
+      repo: Angela95J/Ms_recepcion
+      branch: main
+      deploy_on_push: true
+
+    source_dir: /recepcion
+    dockerfile_path: recepcion/Dockerfile
+
+    instance_count: 1
+    instance_size_slug: professional-xs  # 1 vCPU, 1GB RAM
+
+    http_port: 8080
+
+    health_check:
+      http_path: /api/actuator/health
+      initial_delay_seconds: 60
+      period_seconds: 30
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 3
+
+    routes:
+      - path: /api
+
+    envs:
+      # Base de datos (se conecta automáticamente con ${recepcion-db.xxx})
+      - key: SPRING_DATASOURCE_URL
+        value: ${recepcion-db.DATABASE_URL}
+      - key: SPRING_DATASOURCE_USERNAME
+        value: ${recepcion-db.USERNAME}
+      - key: SPRING_DATASOURCE_PASSWORD
+        value: ${recepcion-db.PASSWORD}
+
+      # URLs de servicios ML (usando red interna de DO)
+      - key: ML_TEXTO_BASE_URL
+        value: ${ml-texto.PRIVATE_URL}
+      - key: ML_IMAGEN_BASE_URL
+        value: ${ml-imagen.PRIVATE_URL}
+      - key: ML_TEXTO_ENABLED
+        value: "true"
+      - key: ML_IMAGEN_ENABLED
+        value: "true"
+
+      # Configuración de la aplicación
+      - key: SPRING_PROFILES_ACTIVE
+        value: "prod"
+      - key: APP_MULTIMEDIA_UPLOAD_DIR
+        value: "/app/uploads"
+      - key: APP_MULTIMEDIA_MAX_FILE_SIZE
+        value: "10485760"
+      - key: APP_MULTIMEDIA_BASE_URL
+        scope: RUN_TIME
+        value: "${APP_URL}/api"
+
+      # Seguridad - CAMBIAR EN PRODUCCIÓN
+      - key: API_KEY_ADMIN
+        type: SECRET
+        value: "CHANGE_ME_admin-key-production-12345"
+      - key: API_KEY_N8N
+        type: SECRET
+        value: "CHANGE_ME_n8n-key-production-67890"
+
+      # JVM Options
+      - key: JAVA_OPTS
+        value: "-Xms512m -Xmx1024m"
+
+  # -------------------------
+  # ML Análisis de Texto
+  # -------------------------
+  - name: ml-texto
+    github:
+      repo: Angela95J/Ms_recepcion
+      branch: main
+      deploy_on_push: true
+
+    source_dir: /ml_analisis_texto
+    dockerfile_path: ml_analisis_texto/Dockerfile
+
+    instance_count: 1
+    instance_size_slug: professional-xs  # 1 vCPU, 1GB RAM
+
+    http_port: 8001
+
+    health_check:
+      http_path: /api/ml/salud
+      initial_delay_seconds: 40
+      period_seconds: 30
+      timeout_seconds: 10
+
+    envs:
+      - key: PORT
+        value: "8001"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+
+  # -------------------------
+  # ML Análisis de Imagen
+  # -------------------------
+  - name: ml-imagen
+    github:
+      repo: Angela95J/Ms_recepcion
+      branch: main
+      deploy_on_push: true
+
+    source_dir: /ml_analisis_imagen
+    dockerfile_path: ml_analisis_imagen/Dockerfile
+
+    instance_count: 1
+    instance_size_slug: professional-xs  # 1 vCPU, 1GB RAM
+
+    http_port: 8002
+
+    health_check:
+      http_path: /api/ml/salud
+      initial_delay_seconds: 40
+      period_seconds: 30
+      timeout_seconds: 10
+
+    envs:
+      - key: PORT
+        value: "8002"
+      - key: MODEL_PATH
+        value: "/app/trained_models"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+
+  # -------------------------
+  # n8n - Automatización
+  # -------------------------
+  - name: n8n
+    github:
+      repo: Angela95J/Ms_recepcion
+      branch: main
+      deploy_on_push: true
+
+    # n8n usa imagen directa, no Dockerfile custom
+    image:
+      registry_type: DOCKER_HUB
+      registry: n8nio
+      repository: n8n
+      tag: latest
+
+    instance_count: 1
+    instance_size_slug: professional-xs  # 1 vCPU, 1GB RAM
+
+    http_port: 5678
+
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 60
+      period_seconds: 30
+      timeout_seconds: 10
+
+    routes:
+      - path: /n8n
+
+    envs:
+      - key: N8N_PORT
+        value: "5678"
+      - key: N8N_PROTOCOL
+        value: "https"
+      - key: N8N_HOST
+        scope: RUN_TIME
+        value: "${APP_URL}"
+      - key: WEBHOOK_URL
+        scope: RUN_TIME
+        value: "${APP_URL}/n8n"
+
+      # Base de datos SQLite (usa volumen)
+      - key: DB_TYPE
+        value: "sqlite"
+      - key: DB_SQLITE_DATABASE
+        value: "/home/node/.n8n/database.sqlite"
+
+      # Configuración de ejecución
+      - key: EXECUTIONS_PROCESS
+        value: "main"
+      - key: EXECUTIONS_TIMEOUT
+        value: "3600"
+      - key: EXECUTIONS_DATA_SAVE_ON_ERROR
+        value: "all"
+      - key: EXECUTIONS_DATA_SAVE_ON_SUCCESS
+        value: "all"
+
+      # Timezone
+      - key: GENERIC_TIMEZONE
+        value: "America/Mexico_City"
+      - key: TZ
+        value: "America/Mexico_City"
+
+      # Templates
+      - key: N8N_TEMPLATES_ENABLED
+        value: "true"
+      - key: N8N_TEMPLATES_HOST
+        value: "https://api.n8n.io"
+
+      # URL del microservicio (red interna)
+      - key: MICROSERVICIO_API_URL
+        value: "${microservicio.PRIVATE_URL}/api"
+      - key: MICROSERVICIO_API_KEY
+        type: SECRET
+        value: "CHANGE_ME_n8n-key-production-67890"
+
+# ====================================
+# CONFIGURACIÓN GLOBAL
+# ====================================
+features:
+  - buildpack-stack=ubuntu-22
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
