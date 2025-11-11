@@ -1,0 +1,460 @@
+{
+  "name": "Bot Telegram - Ambulancias FINAL (con notificación ML)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "telegram-trigger-001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer información del mensaje de Telegram\nconst message = $input.item.json.message;\nconst userId = String(message.from.id);\nconst userName = message.from.first_name || 'Usuario';\nconst username = message.from.username || String(message.chat.id);\nconst chatId = message.chat.id;\nconst text = message.text || '';\nconst hasLocation = !!message.location;\nconst hasPhoto = !!message.photo;\n\nreturn {\n  json: {\n    userId,\n    userName,\n    username,\n    chatId,\n    text,\n    hasLocation,\n    hasPhoto,\n    location: message.location,\n    photo: message.photo ? message.photo[message.photo.length - 1] : null,\n    originalMessage: message\n  }\n};"
+      },
+      "id": "extract-data-001",
+      "name": "Extraer Datos",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://microservicio:8080/api/conversaciones/iniciar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{ $json.userId }}\",\n  \"userName\": \"{{ $json.userName }}\",\n  \"canalOrigen\": \"TELEGRAM\"\n}",
+        "options": {}
+      },
+      "id": "get-conversation-001",
+      "name": "Obtener Conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Procesar mensaje según el paso actual\nconst conversacion = $input.item.json;\nconst mensajeData = $('Extraer Datos').first().json;\nconst text = mensajeData.text;\nconst paso = conversacion.pasoActual;\n\n// ===== COMANDOS ESPECIALES =====\nif (text === '/start') {\n  return {\n    json: {\n      action: 'send_message',\n      chatId: mensajeData.chatId,\n      message: `🚑 *Bot de Ambulancias* 🚑\\n\\n¡Hola ${mensajeData.userName}!\\n\\n*Comandos:*\\n• /solicitar - Solicitar ambulancia\\n• /ayuda - Ver instrucciones\\n• /cancelar - Cancelar solicitud`,\n      parseMode: 'Markdown',\n      shouldUpdateConversacion: false\n    }\n  };\n}\n\nif (text === '/ayuda' || text === '/help') {\n  return {\n    json: {\n      action: 'send_message',\n      chatId: mensajeData.chatId,\n      message: `📖 *Cómo usar el bot*\\n\\n*Comandos:*\\n/solicitar - Iniciar\\n/cancelar - Cancelar\\n\\n*Proceso:*\\n1️⃣ Nombre\\n2️⃣ Descripción\\n3️⃣ GPS (📎→Ubicación)\\n4️⃣ Fotos (opcional)\\n\\n✅ Describe con claridad\\n✅ Comparte ubicación exacta`,\n      parseMode: 'Markdown',\n      shouldUpdateConversacion: false\n    }\n  };\n}\n\nif (text === '/cancelar') {\n  if (paso === 'inicio') {\n    return {\n      json: {\n        action: 'send_message',\n        chatId: mensajeData.chatId,\n        message: 'ℹ️ No hay solicitud activa',\n        parseMode: 'Markdown',\n        shouldUpdateConversacion: false\n      }\n    };\n  }\n  return {\n    json: {\n      action: 'cancelar',\n      chatId: mensajeData.chatId,\n      userId: mensajeData.userId\n    }\n  };\n}\n\nif (text === '/solicitar') {\n  return {\n    json: {\n      action: 'update_conversation',\n      chatId: mensajeData.chatId,\n      userId: mensajeData.userId,\n      pasoActual: 'esperando_nombre',\n      datosRecolectados: {\n        username: mensajeData.username,\n        chatId: mensajeData.chatId\n      },\n      message: '🚨 *SOLICITUD DE AMBULANCIA*\\n\\n1️⃣ Envía tu *nombre completo*:',\n      parseMode: 'Markdown'\n    }\n  };\n}\n\n// ===== FLUJO SEGÚN PASO =====\nswitch (paso) {\n  case 'esperando_nombre':\n    if (!text || text.trim().length < 3) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '⚠️ Nombre inválido (mínimo 3 caracteres)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_descripcion',\n        datosRecolectados: { nombre: text.trim() },\n        message: `✅ Nombre: *${text.trim()}*\\n\\n2️⃣ *Describe la emergencia*:`,\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_descripcion':\n    if (!text || text.trim().length < 10) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '⚠️ Describe con más detalle (mínimo 10 caracteres)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_ubicacion',\n        datosRecolectados: { descripcion: text.trim() },\n        message: '✅ Descripción registrada\\n\\n3️⃣ *Comparte ubicación GPS*\\n\\n📎 → Ubicación',\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_ubicacion':\n    if (!mensajeData.hasLocation) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '❌ Usa 📎 → Ubicación (debe ser GPS)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_fotos',\n        datosRecolectados: {\n          latitud: mensajeData.location.latitude,\n          longitud: mensajeData.location.longitude,\n          direccion: `Lat: ${mensajeData.location.latitude.toFixed(6)}, Lon: ${mensajeData.location.longitude.toFixed(6)}`\n        },\n        message: `✅ Ubicación recibida\\n\\n4️⃣ *Fotos* (opcional)\\n\\nEnvía fotos o escribe *LISTO*`,\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_fotos':\n    if (mensajeData.hasPhoto) {\n      const fotos = conversacion.datosRecolectados.fotos || [];\n      fotos.push({\n        fileId: mensajeData.photo.file_id,\n        fileSize: mensajeData.photo.file_size\n      });\n      return {\n        json: {\n          action: 'update_conversation',\n          chatId: mensajeData.chatId,\n          userId: mensajeData.userId,\n          pasoActual: 'esperando_fotos',\n          datosRecolectados: { fotos },\n          message: `✅ Foto ${fotos.length} recibida\\n\\n¿Más fotos? Envía o escribe *LISTO*`,\n          parseMode: 'Markdown'\n        }\n      };\n    }\n    if (text && (text.toUpperCase() === 'LISTO' || text.toUpperCase() === 'NO')) {\n      return {\n        json: {\n          action: 'create_incident',\n          chatId: mensajeData.chatId,\n          userId: mensajeData.userId,\n          conversacion: conversacion\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'send_message',\n        chatId: mensajeData.chatId,\n        message: '⚠️ Envía foto o escribe *LISTO*',\n        parseMode: 'Markdown',\n        shouldUpdateConversacion: false\n      }\n    };\n  \n  default:\n    return {\n      json: {\n        action: 'send_message',\n        chatId: mensajeData.chatId,\n        message: '❓ Usa /solicitar para pedir ambulancia',\n        parseMode: 'Markdown',\n        shouldUpdateConversacion: false\n      }\n    };\n}"
+      },
+      "id": "process-message-001",
+      "name": "Procesar Mensaje",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "rule1",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "update_conversation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "rule2",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create_incident",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "rule3",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "cancelar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "rule4",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "send_message",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "switch-action-001",
+      "name": "¿Qué Acción?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://microservicio:8080/api/conversaciones/{{ $json.userId }}?canal=TELEGRAM",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"pasoActual\": \"{{ $json.pasoActual }}\",\n  \"datosRecolectados\": {{ JSON.stringify($json.datosRecolectados) }}\n}",
+        "options": {}
+      },
+      "id": "update-conv-001",
+      "name": "Actualizar Conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Procesar Mensaje').first().json.chatId }}",
+        "text": "={{ $('Procesar Mensaje').first().json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-update-msg-001",
+      "name": "Enviar Respuesta",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1450, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://microservicio:8080/api/incidentes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"solicitante\": {\n    \"nombreCompleto\": \"{{ $json.conversacion.datosRecolectados.nombre }}\",\n    \"telefono\": \"{{ $json.conversacion.datosRecolectados.username }}\",\n    \"canalOrigen\": \"TELEGRAM\"\n  },\n  \"ubicacion\": {\n    \"descripcionTextual\": \"{{ $json.conversacion.datosRecolectados.direccion }}\",\n    \"latitud\": {{ $json.conversacion.datosRecolectados.latitud }},\n    \"longitud\": {{ $json.conversacion.datosRecolectados.longitud }}\n  },\n  \"descripcionOriginal\": \"{{ $json.conversacion.datosRecolectados.descripcion }}\",\n  \"tipoIncidenteReportado\": \"EMERGENCIA_MEDICA\"\n}",
+        "options": {}
+      },
+      "id": "create-incident-001",
+      "name": "Crear Incidente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Procesar Mensaje').first().json.chatId }}",
+        "text": "=⏳ *Solicitud registrada*\\n\\n📋 Código: `{{ $json.codigo }}`\\n🆔 ID: `{{ $json.id }}`\\n\\n🤖 *Analizando con IA...*\\n⚕️ Evaluando gravedad\\n📊 Procesando datos\\n\\n_Espera un momento por favor_",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-waiting-msg-001",
+      "name": "Notificar Análisis en Progreso",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1450, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-ml-001",
+      "name": "Esperar ML (10seg)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1650, 400],
+      "webhookId": "wait-ml-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://microservicio:8080/api/incidentes/{{ $('Crear Incidente').first().json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-incident-001",
+      "name": "Consultar Incidente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.prioridadFinal }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-ml-ready-001",
+      "name": "¿ML Listo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-retry-001",
+      "name": "Esperar 5seg más",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1850, 600],
+      "webhookId": "wait-retry-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Evaluar prioridad y crear mensaje apropiado\nconst incidente = $input.item.json;\nconst prioridad = incidente.prioridadFinal;\nconst codigo = incidente.codigo;\nconst chatId = $('Procesar Mensaje').first().json.chatId;\n\nlet emoji, titulo, mensaje, urgencia;\n\nswitch(prioridad) {\n  case 'CRITICA':\n    emoji = '🚨';\n    titulo = 'EMERGENCIA CRÍTICA';\n    mensaje = 'Ambulancia despachada *INMEDIATAMENTE*\\n\\n⏱️ Tiempo estimado: 5-10 minutos\\n🚑 Unidad de emergencia en camino\\n\\n⚠️ *MANTENTE EN LA UBICACIÓN*\\n📞 Te llamaremos si necesitamos más información';\n    urgencia = 'MÁXIMA';\n    break;\n    \n  case 'ALTA':\n    emoji = '🚨';\n    titulo = 'EMERGENCIA ALTA';\n    mensaje = 'Ambulancia despachada *DE INMEDIATO*\\n\\n⏱️ Tiempo estimado: 10-20 minutos\\n🚑 Prioridad alta confirmada\\n\\n✅ Mantente en la ubicación\\n📞 Mantén tu teléfono disponible';\n    urgencia = 'ALTA';\n    break;\n    \n  case 'MEDIA':\n    emoji = '🟡';\n    titulo = 'EMERGENCIA MODERADA';\n    mensaje = 'Ambulancia en camino\\n\\n⏱️ Tiempo estimado: 20-40 minutos\\n🚑 Unidad asignada\\n\\n✅ Mantente tranquilo\\n📞 Te contactaremos pronto';\n    urgencia = 'MEDIA';\n    break;\n    \n  case 'BAJA':\n  default:\n    emoji = '🔵';\n    titulo = 'SOLICITUD REGISTRADA';\n    mensaje = 'Evaluando disponibilidad de unidades\\n\\n⏱️ Tiempo estimado: 40-60 minutos\\n📋 Solicitud en cola\\n\\n💡 Si la situación empeora, llama al 911\\n📞 Te contactaremos para confirmar';\n    urgencia = 'BAJA';\n    break;\n}\n\nconst mensajeFinal = `${emoji} *${titulo}* ${emoji}\\n\\n📋 Código: \\`${codigo}\\`\\n⚡ Urgencia: *${urgencia}*\\n\\n${mensaje}\\n\\n_Gracias por usar nuestro servicio_`;\n\nreturn {\n  json: {\n    chatId,\n    message: mensajeFinal,\n    prioridad,\n    incidenteId: incidente.id,\n    userId: $('Procesar Mensaje').first().json.userId\n  }\n};"
+      },
+      "id": "evaluate-priority-001",
+      "name": "Evaluar Prioridad",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-final-result-001",
+      "name": "Notificar Resultado ML",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [2450, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://microservicio:8080/api/conversaciones/{{ $json.userId }}/finalizar?canal=TELEGRAM&incidenteId={{ $json.incidenteId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "finalize-conv-001",
+      "name": "Finalizar Conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2650, 300]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=http://microservicio:8080/api/conversaciones/{{ $json.userId }}?canal=TELEGRAM",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cancel-conv-001",
+      "name": "Cancelar Conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "❌ *Solicitud cancelada*\\n\\nUsa /solicitar cuando necesites ambulancia",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-cancel-msg-001",
+      "name": "Confirmar Cancelación",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1450, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "={{ $json.parseMode || 'Markdown' }}"
+        }
+      },
+      "id": "send-simple-msg-001",
+      "name": "Enviar Mensaje Simple",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1250, 800],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Extraer Datos", "type": "main", "index": 0 }]]
+    },
+    "Extraer Datos": {
+      "main": [[{ "node": "Obtener Conversación", "type": "main", "index": 0 }]]
+    },
+    "Obtener Conversación": {
+      "main": [[{ "node": "Procesar Mensaje", "type": "main", "index": 0 }]]
+    },
+    "Procesar Mensaje": {
+      "main": [[{ "node": "¿Qué Acción?", "type": "main", "index": 0 }]]
+    },
+    "¿Qué Acción?": {
+      "main": [
+        [{ "node": "Actualizar Conversación", "type": "main", "index": 0 }],
+        [{ "node": "Crear Incidente", "type": "main", "index": 0 }],
+        [{ "node": "Cancelar Conversación", "type": "main", "index": 0 }],
+        [{ "node": "Enviar Mensaje Simple", "type": "main", "index": 0 }]
+      ]
+    },
+    "Actualizar Conversación": {
+      "main": [[{ "node": "Enviar Respuesta", "type": "main", "index": 0 }]]
+    },
+    "Crear Incidente": {
+      "main": [[{ "node": "Notificar Análisis en Progreso", "type": "main", "index": 0 }]]
+    },
+    "Notificar Análisis en Progreso": {
+      "main": [[{ "node": "Esperar ML (10seg)", "type": "main", "index": 0 }]]
+    },
+    "Esperar ML (10seg)": {
+      "main": [[{ "node": "Consultar Incidente", "type": "main", "index": 0 }]]
+    },
+    "Consultar Incidente": {
+      "main": [[{ "node": "¿ML Listo?", "type": "main", "index": 0 }]]
+    },
+    "¿ML Listo?": {
+      "main": [
+        [{ "node": "Evaluar Prioridad", "type": "main", "index": 0 }],
+        [{ "node": "Esperar 5seg más", "type": "main", "index": 0 }]
+      ]
+    },
+    "Esperar 5seg más": {
+      "main": [[{ "node": "Consultar Incidente", "type": "main", "index": 0 }]]
+    },
+    "Evaluar Prioridad": {
+      "main": [[{ "node": "Notificar Resultado ML", "type": "main", "index": 0 }]]
+    },
+    "Notificar Resultado ML": {
+      "main": [[{ "node": "Finalizar Conversación", "type": "main", "index": 0 }]]
+    },
+    "Cancelar Conversación": {
+      "main": [[{ "node": "Confirmar Cancelación", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "final-1.0.0",
+  "id": "bot-telegram-ambulancias-final",
+  "meta": {
+    "instanceId": "recepcion-n8n"
+  },
+  "tags": []
+}

@@ -42,7 +42,6 @@ EXPOSE 8001
 # Variables de entorno
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV MODEL_PATH=/app/trained_models
 ENV PORT=8001
 
 # Health check

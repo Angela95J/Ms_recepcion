@@ -23,7 +23,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/solicitantes")
+@RequestMapping("/solicitantes")
 @RequiredArgsConstructor
 public class SolicitanteController {
 

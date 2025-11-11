@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/analisis-imagen")
+@RequestMapping("/analisis-imagen")
 @RequiredArgsConstructor
 public class AnalisisImagenController {
 

@@ -12,7 +12,7 @@ spring:
   # Configuración de JPA/Hibernate
   jpa:
     hibernate:
-      ddl-auto: validate  # validate: valida el esquema, no crea/modifica tablas
+      ddl-auto: update  # update: crea/actualiza tablas automáticamente
     show-sql: true  # Mostrar SQL en consola para desarrollo
     properties:
       hibernate:

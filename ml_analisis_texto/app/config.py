@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     min_confidence: float = 0.6
 
     # Rutas
-    model_path: str = "./trained_models/kmeans_texto_model.pkl"
-    vectorizer_path: str = "./trained_models/tfidf_vectorizer.pkl"
+    model_path: str = "/app/trained_models/kmeans_texto_model.pkl"
+    vectorizer_path: str = "/app/trained_models/tfidf_vectorizer.pkl"
 
     class Config:
         env_file = ".env"

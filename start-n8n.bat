@@ -35,10 +35,10 @@ if %errorlevel% neq 0 (
     echo.
 )
 
-echo [INFO] Iniciando n8n...
+echo [INFO] Iniciando n8n con proyecto independiente 'recepcion-n8n'...
 echo.
 
-docker-compose --env-file .env.n8n -f docker-compose.n8n.yml up -d
+docker-compose -p recepcion-n8n --env-file .env.n8n -f docker-compose.n8n.yml up -d
 
 if %errorlevel% neq 0 (
     echo.
@@ -59,8 +59,8 @@ echo  Password:  admin123
 echo.
 echo IMPORTANTE: Cambia las credenciales en produccion!
 echo.
-echo Para ver los logs: docker-compose -f docker-compose.n8n.yml logs -f
-echo Para detener:      docker-compose -f docker-compose.n8n.yml down
+echo Para ver los logs: docker-compose -p recepcion-n8n -f docker-compose.n8n.yml logs -f
+echo Para detener:      docker-compose -p recepcion-n8n -f docker-compose.n8n.yml down
 echo.
 echo Proximos pasos:
 echo  1. Configura credenciales de WhatsApp/Telegram en n8n

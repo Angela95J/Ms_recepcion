@@ -1,0 +1,367 @@
+{
+  "name": "Bot Telegram - Solicitud de Ambulancias",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "telegram-webhook-ambulancia"
+    },
+    {
+      "parameters": {
+        "functionCode": "// ============================================\n// GESTIÓN DE ESTADO DE CONVERSACIÓN\n// ============================================\n\nconst message = $input.item.json.message;\nconst text = message.text || '';\nconst chatId = message.chat.id;\nconst userId = message.from.id;\nconst userName = message.from.first_name || 'Usuario';\nconst username = message.from.username || chatId.toString();\n\n// Inicializar contexto global si no existe\nif (!global.userStates) {\n  global.userStates = {};\n}\n\n// Obtener o crear estado del usuario\nlet userState = global.userStates[userId] || {\n  step: 'inicio',\n  data: {}\n};\n\n// ============================================\n// PROCESAR COMANDOS\n// ============================================\n\nif (text === '/start') {\n  userState = { step: 'inicio', data: {} };\n  global.userStates[userId] = userState;\n  \n  return {\n    json: {\n      action: 'send_message',\n      chatId: chatId,\n      message: `¡Hola ${userName}! 👋\\n\\nSoy el bot de solicitud de ambulancias.\\n\\n🚑 Para solicitar una ambulancia, usa:\\n/solicitar\\n\\n❓ Para ayuda:\\n/ayuda`,\n      parseMode: 'Markdown'\n    }\n  };\n}\n\nif (text === '/ayuda') {\n  return {\n    json: {\n      action: 'send_message',\n      chatId: chatId,\n      message: `📖 *Comandos disponibles:*\\n\\n/solicitar - Solicitar ambulancia\\n/cancelar - Cancelar solicitud actual\\n/start - Reiniciar bot\\n\\n*¿Cómo solicitar?*\\nAl usar /solicitar, te pediré paso a paso:\\n1️⃣ Tu nombre\\n2️⃣ Descripción de la emergencia\\n3️⃣ Tu ubicación\\n4️⃣ Fotos (opcional)`,\n      parseMode: 'Markdown'\n    }\n  };\n}\n\nif (text === '/cancelar') {\n  global.userStates[userId] = { step: 'inicio', data: {} };\n  \n  return {\n    json: {\n      action: 'send_message',\n      chatId: chatId,\n      message: '❌ Solicitud cancelada.\\n\\nUsa /solicitar cuando necesites una ambulancia.',\n      parseMode: 'Markdown'\n    }\n  };\n}\n\nif (text === '/solicitar') {\n  userState = {\n    step: 'esperando_nombre',\n    data: {\n      username: username,\n      chatId: chatId\n    }\n  };\n  global.userStates[userId] = userState;\n  \n  return {\n    json: {\n      action: 'send_message',\n      chatId: chatId,\n      message: '📋 *Iniciando solicitud de ambulancia*\\n\\n👤 Por favor, envía tu *nombre completo*:',\n      parseMode: 'Markdown'\n    }\n  };\n}\n\n// ============================================\n// FLUJO CONVERSACIONAL PASO A PASO\n// ============================================\n\nswitch (userState.step) {\n  \n  case 'esperando_nombre':\n    if (!text || text.trim().length < 3) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: chatId,\n          message: '⚠️ Por favor, envía un nombre válido (mínimo 3 caracteres).',\n          parseMode: 'Markdown'\n        }\n      };\n    }\n    \n    userState.data.nombre = text.trim();\n    userState.step = 'esperando_descripcion';\n    global.userStates[userId] = userState;\n    \n    return {\n      json: {\n        action: 'send_message',\n        chatId: chatId,\n        message: `✅ Nombre registrado: *${userState.data.nombre}*\\n\\n📝 Ahora describe la emergencia:\\n_Ejemplo: Accidente de tránsito, persona inconsciente_`,\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_descripcion':\n    if (!text || text.trim().length < 10) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: chatId,\n          message: '⚠️ Por favor, describe la emergencia con más detalle (mínimo 10 caracteres).',\n          parseMode: 'Markdown'\n        }\n      };\n    }\n    \n    userState.data.descripcion = text.trim();\n    userState.step = 'esperando_ubicacion';\n    global.userStates[userId] = userState;\n    \n    return {\n      json: {\n        action: 'send_message',\n        chatId: chatId,\n        message: '✅ Descripción registrada\\n\\n📍 Por favor, *comparte tu ubicación* usando el botón de Telegram 📎 → Ubicación',\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_ubicacion':\n    if (message.location) {\n      userState.data.latitud = message.location.latitude;\n      userState.data.longitud = message.location.longitude;\n      userState.data.direccion = `Lat: ${message.location.latitude}, Lon: ${message.location.longitude}`;\n      userState.step = 'esperando_fotos';\n      global.userStates[userId] = userState;\n      \n      return {\n        json: {\n          action: 'send_message',\n          chatId: chatId,\n          message: '✅ Ubicación recibida\\n\\n📸 *¿Tienes fotos del incidente?*\\n\\nEnvía una o varias fotos para verificar la emergencia.\\n\\nSi no tienes fotos, envía: *LISTO*',\n          parseMode: 'Markdown'\n        }\n      };\n    } else {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: chatId,\n          message: '⚠️ Por favor, comparte tu ubicación usando el botón 📎 → Ubicación de Telegram.',\n          parseMode: 'Markdown'\n        }\n      };\n    }\n  \n  case 'esperando_fotos':\n    // Usuario envió foto\n    if (message.photo) {\n      if (!userState.data.fotos) {\n        userState.data.fotos = [];\n      }\n      \n      const photo = message.photo[message.photo.length - 1]; // Mejor calidad\n      userState.data.fotos.push({\n        fileId: photo.file_id,\n        fileSize: photo.file_size\n      });\n      \n      global.userStates[userId] = userState;\n      \n      return {\n        json: {\n          action: 'send_message',\n          chatId: chatId,\n          message: `✅ Foto ${userState.data.fotos.length} recibida\\n\\n¿Más fotos? Envíalas ahora.\\nSi terminaste, envía: *LISTO*`,\n          parseMode: 'Markdown'\n        }\n      };\n    }\n    \n    // Usuario terminó (con o sin fotos)\n    if (text && (text.toUpperCase() === 'LISTO' || text.toUpperCase() === 'NO')) {\n      userState.step = 'procesando';\n      global.userStates[userId] = userState;\n      \n      return {\n        json: {\n          action: 'create_incident',\n          chatId: chatId,\n          userId: userId,\n          ...userState.data\n        }\n      };\n    }\n    \n    return {\n      json: {\n        action: 'send_message',\n        chatId: chatId,\n        message: '⚠️ Envía una foto o escribe *LISTO* para continuar.',\n        parseMode: 'Markdown'\n      }\n    };\n  \n  default:\n    return {\n      json: {\n        action: 'send_message',\n        chatId: chatId,\n        message: '❓ No entendí tu mensaje.\\n\\nUsa /solicitar para pedir una ambulancia.',\n        parseMode: 'Markdown'\n      }\n    };\n}"
+      },
+      "id": "b2c3d4e5-f6a7-4b6c-9d0e-1f2a3b4c5d6e",
+      "name": "Gestión de Estado",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equals",
+              "value2": "create_incident"
+            }
+          ]
+        }
+      },
+      "id": "c3d4e5f6-a7b8-4c7d-0e1f-2a3b4c5d6e7f",
+      "name": "¿Crear Incidente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://microservicio:8080/api/incidentes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"solicitante\": {\n    \"nombreCompleto\": \"{{ $json.nombre }}\",\n    \"telefono\": \"{{ $json.username }}\",\n    \"canalOrigen\": \"telegram\"\n  },\n  \"ubicacion\": {\n    \"descripcionTextual\": \"{{ $json.direccion }}\",\n    \"latitud\": {{ $json.latitud }},\n    \"longitud\": {{ $json.longitud }}\n  },\n  \"descripcionOriginal\": \"{{ $json.descripcion }}\",\n  \"tipoIncidenteReportado\": \"EMERGENCIA_MEDICA\"\n}",
+        "options": {}
+      },
+      "id": "d4e5f6a7-b8c9-4d8e-1f2a-3b4c5d6e7f8a",
+      "name": "Crear Incidente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.fotos ? $json.fotos.length : 0 }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "e5f6a7b8-c9d0-4e9f-2a3b-4c5d6e7f8a9b",
+      "name": "¿Tiene Fotos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Preparar datos para subir cada foto\nconst incidenteId = $input.first().json.id;\nconst fotos = $('Gestión de Estado').first().json.fotos || [];\nconst chatId = $('Gestión de Estado').first().json.chatId;\n\nif (fotos.length === 0) {\n  return [];\n}\n\n// Crear un item por cada foto\nreturn fotos.map((foto, index) => ({\n  json: {\n    incidenteId: incidenteId,\n    fileId: foto.fileId,\n    fileSize: foto.fileSize,\n    photoIndex: index + 1,\n    totalPhotos: fotos.length,\n    chatId: chatId\n  }\n}));"
+      },
+      "id": "f6a7b8c9-d0e1-4f0a-3b4c-5d6e7f8a9b0c",
+      "name": "Preparar Fotos",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $credentials.accessToken }}/getFile?file_id={{ $json.fileId }}",
+        "options": {}
+      },
+      "id": "a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "Obtener Info de Foto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 100],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/file/bot{{ $credentials.accessToken }}/{{ $json.result.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "b8c9d0e1-f2a3-4b4c-5d6e-7f8a9b0c1d2e",
+      "name": "Descargar Foto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 100],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://microservicio:8080/api/multimedia/incidente/{{ $('Crear Incidente').first().json.id }}/subir",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "archivo",
+              "value": "={{ $binary.data }}"
+            },
+            {
+              "name": "descripcion",
+              "value": "=Foto {{ $json.photoIndex }} de {{ $json.totalPhotos }} - Enviada desde Telegram"
+            },
+            {
+              "name": "esPrincipal",
+              "value": "={{ $json.photoIndex === 1 ? 'true' : 'false' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f",
+      "name": "Subir Foto al Microservicio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1850, 100]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Gestión de Estado').first().json.chatId }}",
+        "text": "=✅ *¡Solicitud registrada exitosamente!*\\n\\n📋 *Código:* `{{ $json.codigo }}`\\n🆔 *ID:* `{{ $json.id }}`\\n🚑 *Prioridad:* {{ $json.prioridadFinal }}\\n⏰ *Estado:* {{ $json.estado }}\\n\\n🏥 La ambulancia está en camino.\\nMantente en la ubicación indicada.\\n\\n_Guarda el código para consultas._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "d0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a",
+      "name": "Confirmación Final",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [2050, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "={{ $json.parseMode || 'Markdown' }}"
+        }
+      },
+      "id": "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+      "name": "Enviar Mensaje",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [850, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Limpiar estado del usuario después de crear el incidente\nconst userId = $('Gestión de Estado').first().json.userId;\n\nif (global.userStates && global.userStates[userId]) {\n  delete global.userStates[userId];\n}\n\nreturn $input.all();"
+      },
+      "id": "f2a3b4c5-d6e7-4f8a-9b0c-1d2e3f4a5b6c",
+      "name": "Limpiar Estado",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2250, 200]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Gestión de Estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gestión de Estado": {
+      "main": [
+        [
+          {
+            "node": "¿Crear Incidente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Crear Incidente?": {
+      "main": [
+        [
+          {
+            "node": "Crear Incidente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Incidente": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene Fotos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene Fotos?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Fotos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirmación Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Fotos": {
+      "main": [
+        [
+          {
+            "node": "Obtener Info de Foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Info de Foto": {
+      "main": [
+        [
+          {
+            "node": "Descargar Foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Foto": {
+      "main": [
+        [
+          {
+            "node": "Subir Foto al Microservicio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir Foto al Microservicio": {
+      "main": [
+        [
+          {
+            "node": "Confirmación Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmación Final": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "id": "bot-telegram-ambulancias",
+  "meta": {
+    "instanceId": "recepcion-n8n"
+  },
+  "tags": []
+}

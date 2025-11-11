@@ -40,12 +40,16 @@ public class MlTextoClient {
 
         try {
             log.info("Llamando al servicio ML de texto: {}", url);
+            log.info("Texto a analizar: '{}'", texto);
+            log.info("Longitud del texto: {} caracteres", texto != null ? texto.length() : 0);
 
             // Construir request
             AnalizarTextoRequest request = AnalizarTextoRequest.builder()
                     .texto(texto)
                     .incidenteId(incidenteId)
                     .build();
+
+            log.info("Request construido - Texto: '{}', IncidenteId: {}", request.getTexto(), request.getIncidenteId());
 
             // Headers
             HttpHeaders headers = new HttpHeaders();

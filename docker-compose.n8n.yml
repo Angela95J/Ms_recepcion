@@ -5,16 +5,12 @@ services:
   n8n:
     image: n8nio/n8n:latest
     container_name: recepcion-n8n
+    env_file:
+      - .env.n8n
     environment:
-      # ====================================
-      # CONFIGURACIÓN BÁSICA
-      # ====================================
-      - N8N_HOST=${N8N_HOST:-localhost}
+      # Las variables se cargan desde .env.n8n (ver env_file arriba)
+      # Solo dejamos las que NO están en .env.n8n
       - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
-
-      # URL base para webhooks (importante para WhatsApp/Telegram)
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678}
 
       # ====================================
       # BASE DE DATOS
@@ -24,19 +20,8 @@ services:
       - DB_TYPE=sqlite
       - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
 
-      # ====================================
-      # ZONA HORARIA
-      # ====================================
-      - GENERIC_TIMEZONE=${TIMEZONE:-America/La_Paz}
-      - TZ=${TIMEZONE:-America/La_Paz}
-
-      # ====================================
-      # SEGURIDAD
-      # ====================================
-      # Autenticación básica (cambiar en producción)
-      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
-      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-admin123}
+      # Zona horaria, seguridad, logging e integración
+      # se cargan desde .env.n8n
 
       # ====================================
       # CONFIGURACIÓN DE EJECUCIÓN
@@ -51,18 +36,7 @@ services:
       - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
       - EXECUTIONS_DATA_MAX_AGE=336  # 14 días
 
-      # ====================================
-      # LOGGING
-      # ====================================
-      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
       - N8N_LOG_OUTPUT=console
-
-      # ====================================
-      # INTEGRACIÓN CON MICROSERVICIO
-      # ====================================
-      # URLs para que n8n se comunique con el microservicio
-      - MICROSERVICIO_BASE_URL=${MICROSERVICIO_BASE_URL:-http://microservicio:8080}
-      - MICROSERVICIO_API_KEY=${MICROSERVICIO_API_KEY:-dev-key-12345}
 
       # ====================================
       # CONFIGURACIÓN DE NODOS

@@ -28,7 +28,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/incidentes")
+@RequestMapping("/incidentes")
 @RequiredArgsConstructor
 public class IncidenteController {
 
@@ -43,6 +43,9 @@ public class IncidenteController {
     @PostMapping
     public ResponseEntity<IncidenteResponse> crear(@Valid @RequestBody CrearIncidenteRequest request) {
         log.info("Creando nuevo incidente");
+        log.info("Descripción recibida: '{}'", request.getDescripcionOriginal());
+        log.info("Tipo incidente reportado: '{}'", request.getTipoIncidenteReportado());
+        log.info("Solicitante teléfono: '{}'", request.getSolicitante() != null ? request.getSolicitante().getTelefono() : "null");
         IncidenteResponse response = incidenteService.crear(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

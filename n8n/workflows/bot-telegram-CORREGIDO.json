@@ -1,0 +1,402 @@
+{
+  "name": "Bot Telegram - Recepción Incidentes (CON ML)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer datos del mensaje de Telegram\nconst message = $input.item.json.message;\nconst userId = String(message.from.id);\nconst userName = message.from.first_name || 'Usuario';\nconst username = message.from.username || String(message.chat.id);\nconst chatId = message.chat.id;\nconst text = message.text || '';\nconst hasLocation = !!message.location;\nconst hasPhoto = !!message.photo;\n\nreturn {\n  json: {\n    userId,\n    userName,\n    username,\n    chatId,\n    text,\n    hasLocation,\n    hasPhoto,\n    location: message.location,\n    photo: message.photo ? message.photo[message.photo.length - 1] : null,\n    originalMessage: message\n  }\n};"
+      },
+      "id": "extraer-datos",
+      "name": "Extraer Datos",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Obtener estado de la conversación desde almacenamiento de n8n\nconst userId = $input.item.json.userId;\nconst storageKey = `conversacion_${userId}`;\nconst storage = $getWorkflowStaticData('global');\n\nconst estadoGuardado = storage[storageKey] || {\n  pasoActual: 'inicio',\n  datosRecolectados: {}\n};\n\nreturn {\n  json: {\n    ...estadoGuardado,\n    userId,\n    userName: $input.item.json.userName\n  }\n};"
+      },
+      "id": "obtener-estado",
+      "name": "Obtener Estado",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Procesar mensaje según el paso actual\nconst conversacion = $('Obtener Estado').first().json;\nconst mensajeData = $('Extraer Datos').first().json;\nconst text = mensajeData.text;\nconst paso = conversacion.pasoActual;\n\n// ===== COMANDOS ESPECIALES =====\nif (text === '/start') {\n  return {\n    json: {\n      action: 'send_message',\n      chatId: mensajeData.chatId,\n      message: `🚨 *Bot de Recepción de Incidentes* 🚨\\n\\n¡Hola ${mensajeData.userName}!\\n\\n*Comandos:*\\n• /reportar - Reportar incidente\\n• /ayuda - Ver instrucciones\\n• /cancelar - Cancelar reporte`,\n      parseMode: 'Markdown',\n      shouldUpdateConversacion: false\n    }\n  };\n}\n\nif (text === '/ayuda' || text === '/help') {\n  return {\n    json: {\n      action: 'send_message',\n      chatId: mensajeData.chatId,\n      message: `📖 *Cómo reportar un incidente*\\n\\n*Comandos:*\\n/reportar - Iniciar reporte\\n/cancelar - Cancelar\\n\\n*Proceso:*\\n1️⃣ Nombre completo\\n2️⃣ Teléfono\\n3️⃣ Descripción del incidente\\n4️⃣ Ubicación GPS\\n5️⃣ Fotos (opcional)\\n\\n✅ Describe con claridad\\n✅ Comparte ubicación exacta`,\n      parseMode: 'Markdown',\n      shouldUpdateConversacion: false\n    }\n  };\n}\n\nif (text === '/cancelar') {\n  if (paso === 'inicio') {\n    return {\n      json: {\n        action: 'send_message',\n        chatId: mensajeData.chatId,\n        message: 'ℹ️ No hay reporte activo',\n        parseMode: 'Markdown',\n        shouldUpdateConversacion: false\n      }\n    };\n  }\n  return {\n    json: {\n      action: 'cancelar',\n      chatId: mensajeData.chatId,\n      userId: mensajeData.userId,\n      message: '❌ *Reporte cancelado*\\n\\nUsa /reportar cuando necesites reportar un incidente',\n      parseMode: 'Markdown'\n    }\n  };\n}\n\nif (text === '/reportar') {\n  return {\n    json: {\n      action: 'update_conversation',\n      chatId: mensajeData.chatId,\n      userId: mensajeData.userId,\n      pasoActual: 'esperando_nombre',\n      datosRecolectados: {\n        username: mensajeData.username,\n        chatId: mensajeData.chatId\n      },\n      message: '🚨 *REPORTE DE INCIDENTE*\\n\\n1️⃣ Envía tu *nombre completo*:',\n      parseMode: 'Markdown'\n    }\n  };\n}\n\n// ===== FLUJO SEGÚN PASO =====\nswitch (paso) {\n  case 'esperando_nombre':\n    if (!text || text.trim().length < 3) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '⚠️ Nombre inválido (mínimo 3 caracteres)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_telefono',\n        datosRecolectados: { nombre: text.trim() },\n        message: `✅ Nombre: *${text.trim()}*\\n\\n2️⃣ Envía tu *número de teléfono* (ej: +59175123456):`,\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_telefono':\n    if (!text || text.trim().length < 8) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '⚠️ Teléfono inválido (mínimo 8 caracteres)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_descripcion',\n        datosRecolectados: { telefono: text.trim() },\n        message: `✅ Teléfono registrado\\n\\n3️⃣ *Describe el incidente* con detalle:`,\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_descripcion':\n    if (!text || text.trim().length < 10) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '⚠️ Describe con más detalle (mínimo 10 caracteres)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_ubicacion',\n        datosRecolectados: { descripcion: text.trim() },\n        message: '✅ Descripción registrada\\n\\n4️⃣ *Comparte ubicación GPS*\\n\\n📎 → Ubicación',\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_ubicacion':\n    if (!mensajeData.hasLocation) {\n      return {\n        json: {\n          action: 'send_message',\n          chatId: mensajeData.chatId,\n          message: '❌ Usa 📎 → Ubicación (debe ser GPS)',\n          parseMode: 'Markdown',\n          shouldUpdateConversacion: false\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'update_conversation',\n        chatId: mensajeData.chatId,\n        userId: mensajeData.userId,\n        pasoActual: 'esperando_fotos',\n        datosRecolectados: {\n          latitud: mensajeData.location.latitude,\n          longitud: mensajeData.location.longitude,\n          direccion: `GPS: ${mensajeData.location.latitude.toFixed(6)}, ${mensajeData.location.longitude.toFixed(6)}`\n        },\n        message: `✅ Ubicación recibida\\n\\n5️⃣ *Fotos* (opcional)\\n\\nEnvía fotos o escribe *LISTO*`,\n        parseMode: 'Markdown'\n      }\n    };\n  \n  case 'esperando_fotos':\n    if (mensajeData.hasPhoto) {\n      const fotos = conversacion.datosRecolectados.fotos || [];\n      fotos.push({\n        fileId: mensajeData.photo.file_id,\n        fileSize: mensajeData.photo.file_size\n      });\n      return {\n        json: {\n          action: 'update_conversation',\n          chatId: mensajeData.chatId,\n          userId: mensajeData.userId,\n          pasoActual: 'esperando_fotos',\n          datosRecolectados: { fotos },\n          message: `✅ Foto ${fotos.length} recibida\\n\\n¿Más fotos? Envía o escribe *LISTO*`,\n          parseMode: 'Markdown'\n        }\n      };\n    }\n    if (text && (text.toUpperCase() === 'LISTO' || text.toUpperCase() === 'NO')) {\n      return {\n        json: {\n          action: 'create_incident',\n          chatId: mensajeData.chatId,\n          userId: mensajeData.userId,\n          conversacion: conversacion\n        }\n      };\n    }\n    return {\n      json: {\n        action: 'send_message',\n        chatId: mensajeData.chatId,\n        message: '⚠️ Envía foto o escribe *LISTO*',\n        parseMode: 'Markdown',\n        shouldUpdateConversacion: false\n      }\n    };\n  \n  default:\n    return {\n      json: {\n        action: 'send_message',\n        chatId: mensajeData.chatId,\n        message: '❓ Usa /reportar para reportar un incidente',\n        parseMode: 'Markdown',\n        shouldUpdateConversacion: false\n      }\n    };\n}"
+      },
+      "id": "procesar-mensaje",
+      "name": "Procesar Mensaje",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "rule1",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "update_conversation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "rule2",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create_incident",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "rule3",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "cancelar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "rule4",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "send_message",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "switch-action",
+      "name": "¿Qué Acción?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Guardar estado en almacenamiento de n8n\nconst data = $input.item.json;\nconst userId = data.userId;\nconst storageKey = `conversacion_${userId}`;\nconst storage = $getWorkflowStaticData('global');\n\n// Obtener estado anterior\nconst estadoAnterior = storage[storageKey] || { datosRecolectados: {} };\n\n// Combinar datos anteriores con nuevos datos\nconst datosRecolectadosCombinados = {\n  ...estadoAnterior.datosRecolectados,\n  ...data.datosRecolectados\n};\n\n// Guardar estado actualizado\nstorage[storageKey] = {\n  pasoActual: data.pasoActual,\n  datosRecolectados: datosRecolectadosCombinados\n};\n\nreturn {\n  json: {\n    ...data,\n    datosRecolectados: datosRecolectadosCombinados\n  }\n};"
+      },
+      "id": "guardar-estado",
+      "name": "Guardar Estado",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "enviar-respuesta",
+      "name": "Enviar Respuesta",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1450, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://microservicio:8080/api/incidentes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"solicitante\": {\n    \"nombreCompleto\": \"{{ $json.conversacion.datosRecolectados.nombre }}\",\n    \"telefono\": \"{{ $json.conversacion.datosRecolectados.telefono }}\",\n    \"canalOrigen\": \"TELEGRAM\"\n  },\n  \"ubicacion\": {\n    \"descripcionTextual\": \"{{ $json.conversacion.datosRecolectados.direccion }}\",\n    \"latitud\": {{ $json.conversacion.datosRecolectados.latitud }},\n    \"longitud\": {{ $json.conversacion.datosRecolectados.longitud }}\n  },\n  \"descripcionOriginal\": \"{{ $json.conversacion.datosRecolectados.descripcion }}\",\n  \"tipoIncidenteReportado\": \"INCIDENTE_GENERAL\"\n}",
+        "options": {}
+      },
+      "id": "crear-incidente",
+      "name": "POST /incidentes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Procesar Mensaje').first().json.chatId }}",
+        "text": "=⏳ *Incidente registrado*\\n\\n🆔 ID: `{{ $json.id }}`\\n📊 Estado: {{ $json.estado }}\\n\\n🤖 *Analizando con IA...*\\n📝 Análisis de texto\\n📸 Análisis de imágenes\\n⚡ Calculando prioridad\\n\\n_Espera un momento por favor_",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "notificar-analisis",
+      "name": "Notificar Análisis en Progreso",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1450, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-ml",
+      "name": "Esperar ML (10seg)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1650, 400],
+      "webhookId": "wait-ml-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://microservicio:8080/api/incidentes/{{ $('POST /incidentes').first().json.id }}/detalle",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "dev-key-12345"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "consultar-incidente",
+      "name": "GET /incidentes/{id}/detalle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.prioridad }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-ml-ready",
+      "name": "¿ML Listo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-retry",
+      "name": "Esperar 5seg más",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1850, 600],
+      "webhookId": "wait-retry-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Evaluar prioridad y crear mensaje apropiado\nconst incidente = $input.item.json;\nconst prioridad = incidente.prioridad;\nconst chatId = $('Procesar Mensaje').first().json.chatId;\nconst userId = $('Procesar Mensaje').first().json.userId;\n\n// Datos del análisis\nconst analisisTexto = incidente.analisisTexto || {};\nconst analisisImagen = incidente.analisisImagen || {};\n\nlet emoji, titulo, mensaje, urgencia;\n\n// Determinar nivel de urgencia según prioridad\nif (prioridad >= 8) {\n  emoji = '🚨';\n  titulo = 'PRIORIDAD CRÍTICA';\n  urgencia = 'CRÍTICA';\n  mensaje = '⚠️ *ATENCIÓN INMEDIATA REQUERIDA*\\n\\n🚑 El incidente requiere atención urgente\\n⏱️ Será procesado con máxima prioridad\\n\\n📞 Nos contactaremos contigo pronto';\n} else if (prioridad >= 6) {\n  emoji = '🔴';\n  titulo = 'PRIORIDAD ALTA';\n  urgencia = 'ALTA';\n  mensaje = '⚡ *ATENCIÓN PRIORITARIA*\\n\\n📋 El incidente será atendido con alta prioridad\\n⏱️ Procesamiento acelerado\\n\\n📞 Recibirás una respuesta pronto';\n} else if (prioridad >= 4) {\n  emoji = '🟡';\n  titulo = 'PRIORIDAD MEDIA';\n  urgencia = 'MEDIA';\n  mensaje = '📊 *EN REVISIÓN*\\n\\n✅ Incidente registrado correctamente\\n⏱️ Será procesado en el orden de llegada\\n\\n📞 Te contactaremos cuando sea necesario';\n} else {\n  emoji = '🔵';\n  titulo = 'PRIORIDAD BAJA';\n  urgencia = 'BAJA';\n  mensaje = '📝 *REGISTRADO*\\n\\n✅ Tu reporte ha sido registrado\\n⏱️ Será evaluado y procesado\\n\\n💡 Te contactaremos si necesitamos más información';\n}\n\n// Construir mensaje detallado\nlet mensajeFinal = `${emoji} *${titulo}* ${emoji}\\n\\n`;\nmensajeFinal += `🆔 ID: \\`${incidente.id}\\`\\n`;\nmensajeFinal += `⚡ Prioridad: *${prioridad}/10*\\n`;\nmensajeFinal += `📊 Urgencia: *${urgencia}*\\n`;\nmensajeFinal += `📅 Estado: ${incidente.estado}\\n\\n`;\n\n// Agregar análisis de texto si está disponible\nif (analisisTexto.tipoIncidente) {\n  mensajeFinal += `📝 *Análisis de Texto:*\\n`;\n  mensajeFinal += `• Tipo: ${analisisTexto.tipoIncidente}\\n`;\n  if (analisisTexto.urgencia) {\n    mensajeFinal += `• Urgencia detectada: ${analisisTexto.urgencia}/10\\n`;\n  }\n  if (analisisTexto.sentimiento) {\n    mensajeFinal += `• Sentimiento: ${analisisTexto.sentimiento}\\n`;\n  }\n  mensajeFinal += `\\n`;\n}\n\n// Agregar análisis de imagen si está disponible\nif (analisisImagen.severidad) {\n  mensajeFinal += `📸 *Análisis de Imagen:*\\n`;\n  mensajeFinal += `• Severidad: ${analisisImagen.severidad}/10\\n`;\n  if (analisisImagen.confianza) {\n    mensajeFinal += `• Confianza: ${(analisisImagen.confianza * 100).toFixed(0)}%\\n`;\n  }\n  mensajeFinal += `\\n`;\n}\n\nmensajeFinal += mensaje;\nmensajeFinal += `\\n\\n_Gracias por usar nuestro servicio_`;\n\nreturn {\n  json: {\n    chatId,\n    message: mensajeFinal,\n    prioridad,\n    incidenteId: incidente.id,\n    userId\n  }\n};"
+      },
+      "id": "evaluar-prioridad",
+      "name": "Evaluar Prioridad y Crear Mensaje",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "notificar-resultado",
+      "name": "Notificar Resultado ML",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [2450, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Limpiar estado de conversación\nconst userId = $input.item.json.userId;\nconst storageKey = `conversacion_${userId}`;\nconst storage = $getWorkflowStaticData('global');\n\n// Eliminar estado\ndelete storage[storageKey];\n\nreturn {\n  json: {\n    ....$input.item.json,\n    conversacionLimpiada: true\n  }\n};"
+      },
+      "id": "limpiar-estado",
+      "name": "Limpiar Estado",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Cancelar conversación - limpiar estado\nconst userId = $input.item.json.userId;\nconst storageKey = `conversacion_${userId}`;\nconst storage = $getWorkflowStaticData('global');\n\n// Eliminar estado\ndelete storage[storageKey];\n\nreturn {\n  json: {\n    chatId: $input.item.json.chatId,\n    message: $input.item.json.message,\n    parseMode: $input.item.json.parseMode\n  }\n};"
+      },
+      "id": "cancelar-conversacion",
+      "name": "Cancelar Conversación",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "={{ $json.parseMode || 'Markdown' }}"
+        }
+      },
+      "id": "enviar-cancelacion",
+      "name": "Enviar Cancelación",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1450, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "={{ $json.parseMode || 'Markdown' }}"
+        }
+      },
+      "id": "enviar-mensaje-simple",
+      "name": "Enviar Mensaje Simple",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1250, 800],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Extraer Datos", "type": "main", "index": 0 }]]
+    },
+    "Extraer Datos": {
+      "main": [[{ "node": "Obtener Estado", "type": "main", "index": 0 }]]
+    },
+    "Obtener Estado": {
+      "main": [[{ "node": "Procesar Mensaje", "type": "main", "index": 0 }]]
+    },
+    "Procesar Mensaje": {
+      "main": [[{ "node": "¿Qué Acción?", "type": "main", "index": 0 }]]
+    },
+    "¿Qué Acción?": {
+      "main": [
+        [{ "node": "Guardar Estado", "type": "main", "index": 0 }],
+        [{ "node": "POST /incidentes", "type": "main", "index": 0 }],
+        [{ "node": "Cancelar Conversación", "type": "main", "index": 0 }],
+        [{ "node": "Enviar Mensaje Simple", "type": "main", "index": 0 }]
+      ]
+    },
+    "Guardar Estado": {
+      "main": [[{ "node": "Enviar Respuesta", "type": "main", "index": 0 }]]
+    },
+    "POST /incidentes": {
+      "main": [[{ "node": "Notificar Análisis en Progreso", "type": "main", "index": 0 }]]
+    },
+    "Notificar Análisis en Progreso": {
+      "main": [[{ "node": "Esperar ML (10seg)", "type": "main", "index": 0 }]]
+    },
+    "Esperar ML (10seg)": {
+      "main": [[{ "node": "GET /incidentes/{id}/detalle", "type": "main", "index": 0 }]]
+    },
+    "GET /incidentes/{id}/detalle": {
+      "main": [[{ "node": "¿ML Listo?", "type": "main", "index": 0 }]]
+    },
+    "¿ML Listo?": {
+      "main": [
+        [{ "node": "Evaluar Prioridad y Crear Mensaje", "type": "main", "index": 0 }],
+        [{ "node": "Esperar 5seg más", "type": "main", "index": 0 }]
+      ]
+    },
+    "Esperar 5seg más": {
+      "main": [[{ "node": "GET /incidentes/{id}/detalle", "type": "main", "index": 0 }]]
+    },
+    "Evaluar Prioridad y Crear Mensaje": {
+      "main": [[{ "node": "Notificar Resultado ML", "type": "main", "index": 0 }]]
+    },
+    "Notificar Resultado ML": {
+      "main": [[{ "node": "Limpiar Estado", "type": "main", "index": 0 }]]
+    },
+    "Cancelar Conversación": {
+      "main": [[{ "node": "Enviar Cancelación", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "corregido-1.0.0",
+  "id": "bot-telegram-incidentes-corregido",
+  "meta": {
+    "instanceId": "recepcion-n8n"
+  },
+  "tags": []
+}

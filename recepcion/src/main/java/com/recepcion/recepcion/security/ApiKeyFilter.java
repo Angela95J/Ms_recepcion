@@ -29,7 +29,7 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     @Value("${api.keys.n8n}")
     private String n8nApiKey;
 
-    private static final String API_KEY_HEADER = "X-API-KEY";
+    private static final String API_KEY_HEADER = "X-API-Key";
 
     // Rutas que NO requieren API Key (públicas)
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
@@ -39,12 +39,13 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             "/api/swagger-resources"
     );
 
-    // Rutas que pueden usar API Key de n8n (creación de incidentes)
+    // Rutas que pueden usar API Key de n8n (creación de incidentes y gestión de conversaciones)
     private static final List<String> N8N_PATHS = Arrays.asList(
             "/api/incidentes",
             "/api/solicitantes",
             "/api/ubicaciones",
-            "/api/multimedia"
+            "/api/multimedia",
+            "/api/conversaciones"
     );
 
     @Override
@@ -70,7 +71,7 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             log.warn("Petición sin API Key a: {} {}", method, requestPath);
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"API Key requerida. Use header X-API-KEY\"}");
+            response.getWriter().write("{\"error\":\"API Key requerida. Use header X-API-Key\"}");
             return;
         }
 
@@ -125,7 +126,17 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             return true;
         }
 
-        // n8n NO puede hacer PUT, PATCH, DELETE
+        // n8n puede hacer GET en incidentes (para consultar estado de análisis ML)
+        if ("GET".equals(method) && path.startsWith("/api/incidentes")) {
+            return true;
+        }
+
+        // n8n puede hacer GET, PATCH, DELETE en conversaciones (gestión de estado del bot)
+        if (path.startsWith("/api/conversaciones")) {
+            return "GET".equals(method) || "PATCH".equals(method) || "DELETE".equals(method) || "POST".equals(method);
+        }
+
+        // n8n NO puede hacer PUT, PATCH, DELETE en otras rutas
         return false;
     }
 }

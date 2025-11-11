@@ -7,4 +7,4 @@ echo  Presiona Ctrl+C para salir
 echo ================================================
 echo.
 
-docker-compose -f docker-compose.n8n.yml logs -f
+docker-compose -p recepcion-n8n -f docker-compose.n8n.yml logs -f

@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/analisis-texto")
+@RequestMapping("/analisis-texto")
 @RequiredArgsConstructor
 public class AnalisisTextoController {
 

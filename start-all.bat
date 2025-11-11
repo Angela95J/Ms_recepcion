@@ -78,7 +78,7 @@ echo   - Password:        admin123
 echo.
 echo Comandos utiles:
 echo   Ver logs app:      docker-compose -f docker-compose.app.yml logs -f
-echo   Ver logs n8n:      docker-compose -f docker-compose.n8n.yml logs -f
+echo   Ver logs n8n:      docker-compose -p recepcion-n8n -f docker-compose.n8n.yml logs -f
 echo   Detener todo:      stop-all.bat
 echo.
 echo Proximos pasos:

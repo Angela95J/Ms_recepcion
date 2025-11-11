@@ -18,7 +18,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/historial-estados")
+@RequestMapping("/historial-estados")
 @RequiredArgsConstructor
 public class HistorialEstadosController {
 

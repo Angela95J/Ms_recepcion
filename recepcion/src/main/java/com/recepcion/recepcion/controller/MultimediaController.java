@@ -26,7 +26,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/multimedia")
+@RequestMapping("/multimedia")
 @RequiredArgsConstructor
 @Tag(name = "Multimedia", description = "Gestión de archivos multimedia")
 public class MultimediaController {

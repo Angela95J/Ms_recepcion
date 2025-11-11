@@ -38,6 +38,8 @@ Abre tu navegador en: **http://localhost:5678**
 ## 📋 Comandos Esenciales
 
 ```bash
+#arrancar n8n
+docker-compose -f docker-compose.n8n.yml up -d --build
 # Ver logs en tiempo real
 docker-compose -f docker-compose.n8n.yml logs -f
 

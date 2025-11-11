@@ -17,7 +17,7 @@ WhatsApp Mensaje
     ↓
 Webhook n8n (/webhook/whatsapp)
     ↓
-Extraer datos (nombre, teléfono, descripción, ubicación)
+Extraer datos (nombre, teléfono, descripción, ubicación, imagenes)
     ↓
 Validar datos
     ↓

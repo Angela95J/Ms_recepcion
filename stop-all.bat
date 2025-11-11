@@ -7,7 +7,7 @@ echo ================================================
 echo.
 
 echo [INFO] Deteniendo n8n...
-docker-compose -f docker-compose.n8n.yml down
+docker-compose -p recepcion-n8n -f docker-compose.n8n.yml down
 
 echo.
 echo [INFO] Deteniendo stack principal...

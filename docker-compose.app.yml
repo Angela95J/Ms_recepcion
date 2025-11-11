@@ -32,7 +32,6 @@ services:
     container_name: recepcion-ml-texto
     environment:
       PORT: 8001
-      MODEL_PATH: /app/trained_models
       PYTHONUNBUFFERED: 1
     ports:
       - "${ML_TEXTO_PORT:-8001}:8001"
@@ -103,7 +102,8 @@ services:
       APP_MULTIMEDIA_BASE_URL: http://localhost:8080/api
 
       # Seguridad (API Keys - cambiar en producción)
-      API_KEYS: ${API_KEYS:-dev-key-12345,admin-key-67890}
+      API_KEY_ADMIN: ${API_KEY_ADMIN:-admin-key-67890}
+      API_KEY_N8N: ${API_KEY_N8N:-dev-key-12345}
 
       # JVM Options
       JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx1024m}
@@ -117,15 +117,15 @@ services:
       postgres:
         condition: service_healthy
       ml-texto:
-        condition: service_healthy
+        condition: service_started
       ml-imagen:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+        condition: service_started
+    # healthcheck:
+    #   test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 5
+    #   start_period: 90s
     restart: unless-stopped
 
 # Volúmenes persistentes
